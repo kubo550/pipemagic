@@ -31,7 +31,7 @@ export default async function Home({
   if (!userId) return <ConnectCard error={error} />;
 
   return (
-    <AppShell active="assistant">
+    <AppShell>
       <ConnectedView userId={userId} />
     </AppShell>
   );

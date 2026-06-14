@@ -13,7 +13,7 @@ export default async function AboutPage() {
   const aboutMe = await getAboutMe(userId);
 
   return (
-    <AppShell active="about">
+    <AppShell>
       <div className="flex flex-col gap-2">
         <h2 className="text-lg font-semibold tracking-tight">About me</h2>
         <p className="max-w-2xl text-sm text-zinc-500">
