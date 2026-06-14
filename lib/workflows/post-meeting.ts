@@ -16,6 +16,14 @@ export const followUpSchema = z.object({
   summary: z.string(),
   followUpEmail: z.string(),
   nextSteps: z.array(z.string()),
+  facts: z
+    .array(
+      z.object({
+        text: z.string(),
+        confidence: z.number().min(0).max(1),
+      }),
+    )
+    .default([]),
 });
 export type FollowUp = z.infer<typeof followUpSchema>;
 
@@ -39,6 +47,9 @@ function buildSystem(aboutMe: string): string {
     '- "followUpEmail": a complete, ready-to-send follow-up email (plain text,',
     "  with greeting and sign-off) referencing concrete points from the call.",
     '- "nextSteps": an array of short, concrete action items (strings).',
+    '- "facts": an array of atomic, durable facts worth remembering for next',
+    "  time, each {\"text\": string, \"confidence\": number 0..1}. Keep each fact",
+    "  to one clear statement grounded in the transcript (no speculation).",
   ];
   if (aboutMe.trim()) {
     lines.push(

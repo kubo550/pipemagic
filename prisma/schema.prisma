@@ -134,6 +134,7 @@ model Meeting {
 
   user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   deal Deal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  facts Fact[]
 
   @@index([userId])
   @@index([dealId])
@@ -148,12 +149,15 @@ enum SourceType {
   web
 }
 
-// The backbone of the context model: an atomic, addressed, sourced claim about
-// a deal. `supersededById` lets newer facts retire older ones without deletion.
+// The backbone of the context model: an atomic, addressed, sourced claim.
+// Always tied to a user; optionally anchored to a Meeting (generic) and/or a
+// Deal (sales). Generic on purpose — not every user has "deals".
+// `supersededById` lets newer facts retire older ones without deletion.
 model Fact {
   id             String     @id @default(cuid())
   userId         String
-  dealId         String
+  dealId         String?
+  meetingId      String?
   text           String
   sourceType     SourceType
   sourceRef      String?
@@ -162,11 +166,13 @@ model Fact {
   supersededById String?
   createdAt      DateTime   @default(now())
 
-  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  deal         Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  supersededBy Fact?  @relation("FactSupersede", fields: [supersededById], references: [id], onDelete: SetNull)
-  supersedes   Fact[] @relation("FactSupersede")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deal         Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  meeting      Meeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  supersededBy Fact?    @relation("FactSupersede", fields: [supersededById], references: [id], onDelete: SetNull)
+  supersedes   Fact[]   @relation("FactSupersede")
 
   @@index([userId])
   @@index([dealId])
+  @@index([meetingId])
 }

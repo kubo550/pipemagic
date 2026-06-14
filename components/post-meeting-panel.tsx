@@ -3,11 +3,17 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { saveMeetingFactsAction } from "@/app/post-meeting/actions";
 
+interface ExtractedFact {
+  text: string;
+  confidence: number;
+}
 interface FollowUp {
   summary: string;
   followUpEmail: string;
   nextSteps: string[];
+  facts: ExtractedFact[];
 }
 
 export function PostMeetingPanel() {
@@ -16,12 +22,15 @@ export function PostMeetingPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
 
   async function generate() {
     if (transcript.trim().length < 20 || busy) return;
     setBusy(true);
     setError(null);
     setResult(null);
+    setSavedCount(null);
     try {
       const res = await fetch("/api/post-meeting", {
         method: "POST",
@@ -42,6 +51,20 @@ export function PostMeetingPanel() {
     await navigator.clipboard.writeText(result.followUpEmail);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+  }
+
+  async function saveFacts() {
+    if (!result || result.facts.length === 0 || saving) return;
+    setSaving(true);
+    try {
+      const title = result.summary.slice(0, 80);
+      const { saved } = await saveMeetingFactsAction(result.facts, title);
+      setSavedCount(saved);
+    } catch {
+      setError("Could not save facts.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -110,6 +133,38 @@ export function PostMeetingPanel() {
                 <ul className="list-inside list-disc text-sm text-zinc-700 dark:text-zinc-200">
                   {result.nextSteps.map((s, i) => (
                     <li key={i}>{s}</li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {result.facts.length > 0 && (
+              <section className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                    Facts to remember
+                  </h3>
+                  {savedCount === null ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={saveFacts}
+                      disabled={saving}
+                    >
+                      {saving ? "Saving…" : "Save to memory"}
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-green-600 dark:text-green-400">
+                      Saved {savedCount} fact{savedCount === 1 ? "" : "s"}.
+                    </span>
+                  )}
+                </div>
+                <ul className="flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-200">
+                  {result.facts.map((f, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="text-zinc-400">•</span>
+                      <span>{f.text}</span>
+                    </li>
                   ))}
                 </ul>
               </section>
