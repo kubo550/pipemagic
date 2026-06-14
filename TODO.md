@@ -14,10 +14,12 @@ abstraction (OpenAI default `gpt-4o-mini`, Anthropic behind the same interface).
 - **About me + app shell**: `UserProfile`, generic system prompt, shadcn left-nav (Assistant / Post-meeting / About me; Usage/Billing placeholders).
 - **Phase 4 (account-free)**: transcript → follow-up draft + summary + next steps; atomic fact extraction → memory (approval-gated save); generalized `Fact` (optional deal, optional meeting anchor).
 - **Phase 5 (account-free)**: `fetch_url` web enrichment (SSRF-guarded) + `[web: …]` citations.
+- **Phase 6**: run history (`Run` persisted) + `/history` view + onboarding nudge.
+- **Phase 7 (core)**: `ScheduledJob` + `/api/cron/tick`; idempotent enqueue (dedupeKey) + atomic claim (SKIP LOCKED) → fires exactly once. Capture sink → Run history.
 
 ## To do — no external accounts needed
-- [ ] **Phase 6 — Onboarding + run history**: persist each `Run` to DB; History view; onboarding nudge/flow to fill About me. *(in progress)*
-- [ ] **Phase 7 (core) — Proactive**: `ScheduledJob` + cron tick + queue → `runWorkflow`; idempotency/dedupe/atomic claim. (Recall webhook part needs an account — below.)
+- [ ] Delivery channels for scheduled runs (email/Slack) — currently captured to Run history.
+- [ ] Trigger producers: enqueue briefs ~30 min before calendar events; daily 8:00 cron. (Infra ready; need the producer + a real cron caller hitting `/api/cron/tick`.)
 - [ ] Tighten the "to verify" labelling on web facts in the chat prompt.
 - [ ] `CompanyResearchCache` (cache fetched company research by domain).
 - [ ] Approval-gate UI round-trip in chat (loop already supports `awaiting_approval`).
