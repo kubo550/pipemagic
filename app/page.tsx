@@ -1,5 +1,6 @@
 import { getCurrentUserId } from "@/lib/auth/session";
 import { listUpcomingEvents, type UpcomingEvent } from "@/lib/integrations/google";
+import { ChatPanel } from "@/components/chat-panel";
 
 export const runtime = "nodejs";
 
@@ -32,12 +33,14 @@ export default async function Home({
   const userId = await getCurrentUserId();
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-16">
+    <main
+      className={`mx-auto flex w-full flex-1 flex-col gap-8 px-6 py-12 ${
+        userId ? "max-w-5xl" : "max-w-2xl"
+      }`}
+    >
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">PipeMagic</h1>
-        <p className="text-sm text-zinc-500">
-          Phase 1 — Google Calendar connection
-        </p>
+        <p className="text-sm text-zinc-500">Your AI sales-prep assistant</p>
       </header>
 
       {error && (
@@ -78,44 +81,52 @@ async function ConnectedView({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-zinc-500">Upcoming events</h2>
-        <a
-          href="/api/auth/logout"
-          className="text-sm text-zinc-400 underline-offset-4 hover:text-zinc-600 hover:underline dark:hover:text-zinc-300"
-        >
-          Disconnect
-        </a>
+    <div className="grid h-[72vh] min-h-0 gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+      {/* Left: upcoming meetings */}
+      <div className="flex min-h-0 flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-zinc-500">Upcoming meetings</h2>
+          <a
+            href="/api/auth/logout"
+            className="text-sm text-zinc-400 underline-offset-4 hover:text-zinc-600 hover:underline dark:hover:text-zinc-300"
+          >
+            Disconnect
+          </a>
+        </div>
+
+        {failed ? (
+          <p className="text-sm text-zinc-500">
+            Could not load events. Your access may have been revoked —{" "}
+            <a href="/api/auth/google/start" className="underline">
+              reconnect
+            </a>
+            .
+          </p>
+        ) : events.length === 0 ? (
+          <p className="text-sm text-zinc-500">No upcoming events.</p>
+        ) : (
+          <ul className="flex min-h-0 flex-col divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+            {events.map((e) => (
+              <li
+                key={e.id}
+                className="flex flex-col gap-1 bg-white px-4 py-3 dark:bg-zinc-900"
+              >
+                <span className="font-medium">{e.summary}</span>
+                <span className="text-xs text-zinc-500">
+                  {formatStart(e.start)}
+                  {e.attendeeCount > 0 && ` · ${e.attendeeCount} attendees`}
+                  {e.organizerDomain && ` · ${e.organizerDomain}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
-      {failed ? (
-        <p className="text-sm text-zinc-500">
-          Could not load events. Your access may have been revoked —{" "}
-          <a href="/api/auth/google/start" className="underline">
-            reconnect
-          </a>
-          .
-        </p>
-      ) : events.length === 0 ? (
-        <p className="text-sm text-zinc-500">No upcoming events.</p>
-      ) : (
-        <ul className="flex flex-col divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-          {events.map((e) => (
-            <li
-              key={e.id}
-              className="flex flex-col gap-1 bg-white px-4 py-3 dark:bg-zinc-900"
-            >
-              <span className="font-medium">{e.summary}</span>
-              <span className="text-xs text-zinc-500">
-                {formatStart(e.start)}
-                {e.attendeeCount > 0 && ` · ${e.attendeeCount} attendees`}
-                {e.organizerDomain && ` · ${e.organizerDomain}`}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+      {/* Right: chat */}
+      <div className="min-h-0">
+        <ChatPanel />
+      </div>
     </div>
   );
 }

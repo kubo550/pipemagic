@@ -29,6 +29,10 @@ export interface RunResult {
   pendingApproval?: PendingApproval;
 }
 
+export type LoopEvent =
+  | { type: "tool_call"; name: string }
+  | { type: "answer"; text: string };
+
 export interface RunOptions {
   provider: LlmProvider;
   system: string;
@@ -38,6 +42,8 @@ export interface RunOptions {
   maxIterations?: number;
   maxCostUsd?: number;
   maxTokens?: number;
+  /** Optional progress hook so a sink can stream tool-call / answer events. */
+  onEvent?: (e: LoopEvent) => void;
 }
 
 export async function runAgentLoop(opts: RunOptions): Promise<RunResult> {
@@ -50,6 +56,7 @@ export async function runAgentLoop(opts: RunOptions): Promise<RunResult> {
     maxIterations = 8,
     maxCostUsd = 0.5,
     maxTokens = 4096,
+    onEvent,
   } = opts;
 
   const toolMap = new Map(tools.map((t) => [t.name, t]));
@@ -80,6 +87,7 @@ export async function runAgentLoop(opts: RunOptions): Promise<RunResult> {
     text = res.text;
 
     if (res.toolCalls.length === 0) {
+      onEvent?.({ type: "answer", text });
       return { status: "completed", text, iterations: i + 1 };
     }
 
@@ -109,6 +117,7 @@ export async function runAgentLoop(opts: RunOptions): Promise<RunResult> {
         });
         continue;
       }
+      onEvent?.({ type: "tool_call", name: call.name });
       if (tool.requiresApproval) {
         return {
           status: "awaiting_approval",
