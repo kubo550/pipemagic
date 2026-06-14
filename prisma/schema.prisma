@@ -1,0 +1,46 @@
+// PipeMagic — Phase 1 schema.
+// Only the foundation entities live here. Deal/Company/Stakeholder/Meeting/Fact
+// and the rest of PRD §9 arrive in Phase 2+.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Pooled connection (Supabase transaction pooler, port 6543) for the app at runtime.
+  url       = env("DATABASE_URL")
+  // Direct connection (port 5432) used by `prisma migrate` / introspection.
+  directUrl = env("DIRECT_URL")
+}
+
+// A PipeMagic user. Keyed to the Google account `sub` (stable id), NOT to
+// Supabase Auth. Everything in the product FKs to this table (PRD §6/§9).
+model User {
+  id        String   @id @default(cuid())
+  googleSub String   @unique
+  email     String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tokens OAuthToken[]
+}
+
+// OAuth tokens for an external provider. All token material is stored as
+// ciphertext (AES-256-GCM) — plaintext never touches the database (PRD §8).
+model OAuthToken {
+  id              String   @id @default(cuid())
+  userId          String
+  provider        String // "google"
+  accessTokenEnc  String
+  refreshTokenEnc String
+  expiresAt       DateTime
+  scope           String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+}

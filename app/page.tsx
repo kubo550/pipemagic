@@ -1,65 +1,121 @@
-import Image from "next/image";
+import { getCurrentUserId } from "@/lib/auth/session";
+import { listUpcomingEvents, type UpcomingEvent } from "@/lib/integrations/google";
 
-export default function Home() {
+export const runtime = "nodejs";
+
+const ERROR_MESSAGES: Record<string, string> = {
+  denied: "Google access was denied. Try connecting again.",
+  state: "Login session expired. Please try again.",
+  oauth: "Something went wrong connecting to Google. Please try again.",
+};
+
+function formatStart(start: string | null): string {
+  if (!start) return "—";
+  const d = new Date(start);
+  return Number.isNaN(d.getTime())
+    ? start
+    : d.toLocaleString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+}
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+  const userId = await getCurrentUserId();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-16">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold tracking-tight">PipeMagic</h1>
+        <p className="text-sm text-zinc-500">
+          Phase 1 — Google Calendar connection
+        </p>
+      </header>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+          {ERROR_MESSAGES[error] ?? "An error occurred."}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
+      )}
+
+      {userId ? <ConnectedView userId={userId} /> : <ConnectCard />}
+    </main>
+  );
+}
+
+function ConnectCard() {
+  return (
+    <div className="flex flex-col items-start gap-4 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        Connect your Google Calendar to let PipeMagic read your upcoming
+        meetings.
+      </p>
+      <a
+        href="/api/auth/google/start"
+        className="inline-flex h-10 items-center rounded-full bg-zinc-900 px-5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+      >
+        Connect Google Calendar
+      </a>
+    </div>
+  );
+}
+
+async function ConnectedView({ userId }: { userId: string }) {
+  let events: UpcomingEvent[] = [];
+  let failed = false;
+  try {
+    events = await listUpcomingEvents(userId, { maxResults: 10 });
+  } catch {
+    failed = true;
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium text-zinc-500">Upcoming events</h2>
+        <a
+          href="/api/auth/logout"
+          className="text-sm text-zinc-400 underline-offset-4 hover:text-zinc-600 hover:underline dark:hover:text-zinc-300"
+        >
+          Disconnect
+        </a>
+      </div>
+
+      {failed ? (
+        <p className="text-sm text-zinc-500">
+          Could not load events. Your access may have been revoked —{" "}
+          <a href="/api/auth/google/start" className="underline">
+            reconnect
           </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+          .
+        </p>
+      ) : events.length === 0 ? (
+        <p className="text-sm text-zinc-500">No upcoming events.</p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+          {events.map((e) => (
+            <li
+              key={e.id}
+              className="flex flex-col gap-1 bg-white px-4 py-3 dark:bg-zinc-900"
+            >
+              <span className="font-medium">{e.summary}</span>
+              <span className="text-xs text-zinc-500">
+                {formatStart(e.start)}
+                {e.attendeeCount > 0 && ` · ${e.attendeeCount} attendees`}
+                {e.organizerDomain && ` · ${e.organizerDomain}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
