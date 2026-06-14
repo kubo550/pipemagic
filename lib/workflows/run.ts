@@ -3,6 +3,7 @@ import { getProvider } from "@/lib/llm";
 import { CostTracker, pricingFor } from "@/lib/agent/cost";
 import { runAgentLoop, type RunResult } from "@/lib/agent/loop";
 import { calendarTools } from "@/lib/agent/tools/calendar";
+import { webTools } from "@/lib/agent/tools/web";
 import type { RunContext } from "@/lib/agent/tools/types";
 import { getAboutMe } from "@/lib/context/repositories/profile";
 import { log } from "@/lib/observability/logger";
@@ -33,10 +34,15 @@ function systemPrompt(aboutMe: string): string {
     "organizer/attendee domain), and 3–5 concrete talking points or questions",
     "that fit the user's situation.",
     "",
+    "You can also fetch a public web page with fetch_url — e.g. infer the other",
+    "party's company from an attendee's email domain and fetch their site to",
+    "learn what they do.",
+    "",
     "Ground every factual claim in a source. Cite calendar facts inline like",
-    "[calendar: <event title>]. Do not invent details you have not retrieved —",
-    "you currently only have calendar data, no web research. If you don't have",
-    "enough information, say so plainly.",
+    "[calendar: <event title>] and web facts like [web: <url>]. Treat anything",
+    "from the web as unverified — label such points as 'to verify'. Do not",
+    "invent details you have not retrieved. If you don't have enough",
+    "information, say so plainly.",
   ];
 
   if (aboutMe.trim()) {
@@ -70,7 +76,7 @@ export async function runWorkflow(
     provider,
     system: systemPrompt(aboutMe),
     request,
-    tools: calendarTools,
+    tools: [...calendarTools, ...webTools],
     ctx,
     onEvent: (e) => {
       if (e.type === "tool_call") opts.sink.status(`Looking at ${e.name}…`);
