@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { getCurrentUserId } from "@/lib/auth/session";
 import { listUpcomingEvents, type UpcomingEvent } from "@/lib/integrations/google";
+import { getAboutMe } from "@/lib/context/repositories/profile";
 import { ChatPanel } from "@/components/chat-panel";
 import { AppShell } from "@/components/app-shell";
 import { ConnectCard } from "@/components/connect-card";
@@ -30,8 +32,19 @@ export default async function Home({
 
   if (!userId) return <ConnectCard error={error} />;
 
+  const aboutMe = await getAboutMe(userId);
+
   return (
     <AppShell>
+      {!aboutMe.trim() && (
+        <Link
+          href="/about"
+          className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          👋 Tell PipeMagic about yourself on the <strong>About me</strong> page
+          — it tailors every brief and follow-up to your goals.
+        </Link>
+      )}
       <ConnectedView userId={userId} />
     </AppShell>
   );

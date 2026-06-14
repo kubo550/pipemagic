@@ -6,6 +6,7 @@ import { calendarTools } from "@/lib/agent/tools/calendar";
 import { webTools } from "@/lib/agent/tools/web";
 import type { RunContext } from "@/lib/agent/tools/types";
 import { getAboutMe } from "@/lib/context/repositories/profile";
+import { runsRepository } from "@/lib/context/repositories/runs";
 import { log } from "@/lib/observability/logger";
 
 /**
@@ -70,6 +71,13 @@ export async function runWorkflow(
   };
 
   const aboutMe = await getAboutMe(userId);
+  const runs = runsRepository(prisma);
+  const runRow = await runs.create({
+    userId,
+    request,
+    provider: provider.name,
+    model: provider.model,
+  });
   log.info("workflow run started", { userId, provider: provider.name });
 
   const result = await runAgentLoop({
@@ -99,6 +107,13 @@ export async function runWorkflow(
       opts.sink.error("This request took too many steps. Try rephrasing it.");
       break;
   }
+
+  await runs.finish(runRow.id, {
+    status: result.status,
+    iterations: result.iterations,
+    costUsd: ctx.cost.usdSpent,
+    resultText: result.text,
+  });
 
   log.info("workflow run finished", {
     userId,

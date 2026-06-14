@@ -31,6 +31,26 @@ model User {
   meetings     Meeting[]
   facts        Fact[]
   profile      UserProfile?
+  runs         Run[]
+}
+
+// History of agent-loop executions (PRD §9). One row per chat run: the request,
+// how it ended, what it cost, and the result — so runs are visible/traceable.
+model Run {
+  id         String   @id @default(cuid())
+  userId     String
+  request    String
+  status     String
+  provider   String
+  model      String
+  iterations Int      @default(0)
+  costUsd    Float    @default(0)
+  resultText String   @default("")
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // The user's own "about me" — free text folded into the agent system prompt so

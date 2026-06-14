@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MessageSquare, FileText, User, BarChart3, CreditCard } from "lucide-react";
+import { MessageSquare, FileText, Clock, User, BarChart3, CreditCard } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -18,6 +18,7 @@ import {
 const NAV = [
   { label: "Assistant", href: "/", icon: MessageSquare },
   { label: "Post-meeting", href: "/post-meeting", icon: FileText },
+  { label: "History", href: "/history", icon: Clock },
   { label: "About me", href: "/about", icon: User },
 ];
 
