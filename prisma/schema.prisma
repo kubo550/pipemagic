@@ -24,7 +24,12 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tokens OAuthToken[]
+  tokens       OAuthToken[]
+  companies    Company[]
+  deals        Deal[]
+  stakeholders Stakeholder[]
+  meetings     Meeting[]
+  facts        Fact[]
 }
 
 // OAuth tokens for an external provider. All token material is stored as
@@ -43,4 +48,111 @@ model OAuthToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, provider])
+}
+
+// --- Context model (knowledge store, PRD §5.2) ---
+// All entities are keyed to userId; authorization is enforced in code by always
+// filtering on userId (Prisma + Supabase RLS don't compose — PRD §6).
+
+model Company {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  domain    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deals        Deal[]
+  stakeholders Stakeholder[]
+
+  @@index([userId])
+}
+
+model Deal {
+  id        String   @id @default(cuid())
+  userId    String
+  companyId String?
+  name      String
+  stage     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  stakeholders Stakeholder[]
+  meetings     Meeting[]
+  facts        Fact[]
+
+  @@index([userId])
+  @@index([companyId])
+}
+
+model Stakeholder {
+  id        String   @id @default(cuid())
+  userId    String
+  dealId    String?
+  companyId String?
+  name      String
+  email     String?
+  role      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deal    Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([dealId])
+}
+
+model Meeting {
+  id              String    @id @default(cuid())
+  userId          String
+  dealId          String?
+  externalEventId String?
+  title           String?
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deal Deal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([dealId])
+}
+
+// Where a Fact came from — drives grounding (cite the source) and the split
+// between trusted (calendar/crm) and to-verify (web) facts (PRD §5.2).
+enum SourceType {
+  calendar
+  crm
+  transcript
+  web
+}
+
+// The backbone of the context model: an atomic, addressed, sourced claim about
+// a deal. `supersededById` lets newer facts retire older ones without deletion.
+model Fact {
+  id             String     @id @default(cuid())
+  userId         String
+  dealId         String
+  text           String
+  sourceType     SourceType
+  sourceRef      String?
+  confidence     Float      @default(1.0)
+  observedAt     DateTime   @default(now())
+  supersededById String?
+  createdAt      DateTime   @default(now())
+
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deal         Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  supersededBy Fact?  @relation("FactSupersede", fields: [supersededById], references: [id], onDelete: SetNull)
+  supersedes   Fact[] @relation("FactSupersede")
+
+  @@index([userId])
+  @@index([dealId])
 }

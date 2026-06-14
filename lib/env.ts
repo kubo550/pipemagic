@@ -20,6 +20,15 @@ const schema = z.object({
 
   APP_URL: z.string().url().default("http://localhost:3000"),
 
+  // --- LLM ---
+  // Provider is selected here, not via scattered if-checks. Model IDs live in
+  // env (not hardcoded) so they can be bumped without code changes (PRD §6).
+  LLM_PROVIDER: z.enum(["anthropic", "openai"]).default("anthropic"),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  ANTHROPIC_MODEL: z.string().default("claude-sonnet-4-6"),
+  OPENAI_MODEL: z.string().default("gpt-4.1"),
+
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),

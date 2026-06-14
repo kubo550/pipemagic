@@ -160,3 +160,41 @@ export async function listUpcomingEvents(
     };
   });
 }
+
+export interface EventDetails extends UpcomingEvent {
+  location: string | null;
+  description: string | null;
+  attendeeDomains: string[];
+}
+
+/** Fetch one event by id from the primary calendar. Slim, never logged. */
+export async function getEventDetails(
+  userId: string,
+  eventId: string,
+): Promise<EventDetails | null> {
+  const calendar = await getAuthedCalendar(userId);
+  if (!calendar) return null;
+
+  const res = await calendar.events.get({ calendarId: "primary", eventId });
+  const e = res.data;
+  const organizerEmail = e.organizer?.email ?? null;
+  const domains = new Set<string>();
+  for (const a of e.attendees ?? []) {
+    const at = a.email?.split("@")[1];
+    if (at) domains.add(at);
+  }
+
+  return {
+    id: e.id ?? eventId,
+    summary: e.summary ?? "(no title)",
+    start: e.start?.dateTime ?? e.start?.date ?? null,
+    end: e.end?.dateTime ?? e.end?.date ?? null,
+    attendeeCount: e.attendees?.length ?? 0,
+    organizerDomain: organizerEmail?.includes("@")
+      ? organizerEmail.split("@")[1]
+      : null,
+    location: e.location ?? null,
+    description: e.description ?? null,
+    attendeeDomains: [...domains],
+  };
+}
