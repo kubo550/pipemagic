@@ -1,12 +1,15 @@
 import { prisma } from "@/lib/db";
 import { getProvider } from "@/lib/llm";
 import { CostTracker, pricingFor } from "@/lib/agent/cost";
-import { runAgentLoop, type RunResult } from "@/lib/agent/loop";
+import { runAgentLoop, type RunResult, type HistoryTurn } from "@/lib/agent/loop";
 import { calendarTools } from "@/lib/agent/tools/calendar";
 import { webTools } from "@/lib/agent/tools/web";
+import { recallFactsTool } from "@/lib/agent/tools/memory";
 import type { RunContext } from "@/lib/agent/tools/types";
 import { getAboutMe } from "@/lib/context/repositories/profile";
+import { factsRepository } from "@/lib/context/repositories/facts";
 import { runsRepository } from "@/lib/context/repositories/runs";
+import { getEventDetails } from "@/lib/integrations/google";
 import { log } from "@/lib/observability/logger";
 
 /**
@@ -39,6 +42,10 @@ function systemPrompt(aboutMe: string): string {
     "party's company from an attendee's email domain and fetch their site to",
     "learn what they do.",
     "",
+    "You have a memory: call recall_facts to check what you already know about",
+    "the people, company, or past meetings before answering. Cite remembered",
+    "facts inline as [memory].",
+    "",
     "Ground every factual claim in a source. Cite calendar facts inline like",
     "[calendar: <event title>] and web facts like [web: <url>]. Treat anything",
     "from the web as unverified — label such points as 'to verify'. Do not",
@@ -59,10 +66,46 @@ function systemPrompt(aboutMe: string): string {
 
 export type WorkflowOutcome = RunResult & { runId: string };
 
+export interface WorkflowContext {
+  /** A calendar event the user has selected — its details seed the run. */
+  eventId?: string;
+}
+
+/**
+ * Build a concise context block for a selected event: its details plus any
+ * facts we've remembered (PRD §5.2 start-of-run seed). Returns "" if nothing.
+ */
+async function selectedEventBlock(
+  userId: string,
+  eventId: string,
+): Promise<string> {
+  const details = await getEventDetails(userId, eventId);
+  if (!details) return "";
+
+  const lines = [
+    "The user has selected this calendar event — focus on it unless they say otherwise:",
+    `- Title: ${details.summary}`,
+    `- When: ${details.start ?? "?"}${details.end ? ` to ${details.end}` : ""}`,
+  ];
+  if (details.location) lines.push(`- Location: ${details.location}`);
+  if (details.organizerDomain) lines.push(`- Organizer domain: ${details.organizerDomain}`);
+  if (details.attendeeDomains.length)
+    lines.push(`- Attendee domains: ${details.attendeeDomains.join(", ")}`);
+  if (details.description)
+    lines.push(`- Description: ${details.description.slice(0, 500)}`);
+
+  const facts = await factsRepository(prisma).listRecentForUser(userId, 15);
+  if (facts.length) {
+    lines.push("", "Relevant facts you've remembered:");
+    for (const f of facts) lines.push(`- [${f.sourceType}] ${f.text}`);
+  }
+  return lines.join("\n");
+}
+
 export async function runWorkflow(
   userId: string,
   request: string,
-  opts: { sink: WorkflowSink },
+  opts: { sink: WorkflowSink; history?: HistoryTurn[]; context?: WorkflowContext },
 ): Promise<WorkflowOutcome> {
   const provider = getProvider();
   const ctx: RunContext = {
@@ -73,6 +116,13 @@ export async function runWorkflow(
   };
 
   const aboutMe = await getAboutMe(userId);
+
+  // Seed the selected-event context (+ remembered facts) onto the request.
+  let seededRequest = request;
+  if (opts.context?.eventId) {
+    const block = await selectedEventBlock(userId, opts.context.eventId);
+    if (block) seededRequest = `${block}\n\n---\n\n${request}`;
+  }
   const runs = runsRepository(prisma);
   const runRow = await runs.create({
     userId,
@@ -85,8 +135,9 @@ export async function runWorkflow(
   const result = await runAgentLoop({
     provider,
     system: systemPrompt(aboutMe),
-    request,
-    tools: [...calendarTools, ...webTools],
+    request: seededRequest,
+    history: opts.history,
+    tools: [...calendarTools, ...webTools, recallFactsTool],
     ctx,
     onEvent: (e) => {
       if (e.type === "tool_call") opts.sink.status(`Looking at ${e.name}…`);

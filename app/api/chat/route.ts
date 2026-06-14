@@ -15,12 +15,32 @@ export async function POST(req: NextRequest) {
   }
 
   let message: string;
+  let history: { role: "user" | "assistant"; text: string }[] = [];
+  let eventId: string | undefined;
   try {
-    const body = (await req.json()) as { message?: unknown };
+    const body = (await req.json()) as {
+      message?: unknown;
+      history?: unknown;
+      eventId?: unknown;
+    };
     if (typeof body.message !== "string" || !body.message.trim()) {
       return new Response("Bad request", { status: 400 });
     }
     message = body.message;
+    if (Array.isArray(body.history)) {
+      history = body.history
+        .filter(
+          (t): t is { role: "user" | "assistant"; text: string } =>
+            !!t &&
+            typeof t === "object" &&
+            (t as { role?: unknown }).role !== undefined &&
+            ((t as { role: unknown }).role === "user" ||
+              (t as { role: unknown }).role === "assistant") &&
+            typeof (t as { text?: unknown }).text === "string",
+        )
+        .slice(-8);
+    }
+    if (typeof body.eventId === "string" && body.eventId) eventId = body.eventId;
   } catch {
     return new Response("Bad request", { status: 400 });
   }
@@ -38,7 +58,11 @@ export async function POST(req: NextRequest) {
       };
 
       try {
-        await runWorkflow(userId, message, { sink });
+        await runWorkflow(userId, message, {
+          sink,
+          history,
+          context: eventId ? { eventId } : undefined,
+        });
       } catch (err) {
         log.error("chat workflow failed", { err: String(err) });
         send({ type: "error", message: "Something went wrong on this run." });

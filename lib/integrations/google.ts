@@ -133,7 +133,7 @@ export interface UpcomingEvent {
  */
 export async function listUpcomingEvents(
   userId: string,
-  { maxResults = 10 }: { maxResults?: number } = {},
+  { maxResults = 10, daysAhead }: { maxResults?: number; daysAhead?: number } = {},
 ): Promise<UpcomingEvent[]> {
   const calendar = await getAuthedCalendar(userId);
   if (!calendar) return [];
@@ -141,6 +141,9 @@ export async function listUpcomingEvents(
   const res = await calendar.events.list({
     calendarId: "primary",
     timeMin: new Date().toISOString(),
+    timeMax: daysAhead
+      ? new Date(Date.now() + daysAhead * 86_400_000).toISOString()
+      : undefined,
     singleEvents: true,
     orderBy: "startTime",
     maxResults,
@@ -159,6 +162,11 @@ export async function listUpcomingEvents(
         : null,
     };
   });
+}
+
+/** Events for the next 7 days — backs the week calendar view. */
+export function listCalendarWeek(userId: string): Promise<UpcomingEvent[]> {
+  return listUpcomingEvents(userId, { maxResults: 50, daysAhead: 7 });
 }
 
 export interface EventDetails extends UpcomingEvent {

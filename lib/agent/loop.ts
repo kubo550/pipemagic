@@ -33,12 +33,19 @@ export type LoopEvent =
   | { type: "tool_call"; name: string }
   | { type: "answer"; text: string };
 
+export interface HistoryTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
 export interface RunOptions {
   provider: LlmProvider;
   system: string;
   request: string;
   tools: Tool[];
   ctx: RunContext;
+  /** Prior conversation turns to seed before the new request (multi-turn memory). */
+  history?: HistoryTurn[];
   maxIterations?: number;
   maxCostUsd?: number;
   maxTokens?: number;
@@ -53,6 +60,7 @@ export async function runAgentLoop(opts: RunOptions): Promise<RunResult> {
     request,
     tools,
     ctx,
+    history = [],
     maxIterations = 8,
     maxCostUsd = 0.5,
     maxTokens = 4096,
@@ -67,6 +75,12 @@ export async function runAgentLoop(opts: RunOptions): Promise<RunResult> {
   }));
 
   const messages: AgentMessage[] = [
+    ...history.map(
+      (t): AgentMessage => ({
+        role: t.role,
+        content: [{ type: "text", text: t.text }],
+      }),
+    ),
     { role: "user", content: [{ type: "text", text: request }] },
   ];
   let text = "";
