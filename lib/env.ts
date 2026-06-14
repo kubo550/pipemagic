@@ -27,7 +27,7 @@ const schema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default("claude-sonnet-4-6"),
-  OPENAI_MODEL: z.string().default("gpt-4.1"),
+  OPENAI_MODEL: z.string().default("gpt-4o-mini"),
 
   NODE_ENV: z
     .enum(["development", "test", "production"])
