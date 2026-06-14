@@ -30,6 +30,20 @@ model User {
   stakeholders Stakeholder[]
   meetings     Meeting[]
   facts        Fact[]
+  profile      UserProfile?
+}
+
+// The user's own "about me" — free text folded into the agent system prompt so
+// the assistant adapts to whoever they are (salesperson, job candidate,
+// consultant, …). Generic on purpose, not sales-only. One per user.
+model UserProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  aboutMe   String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // OAuth tokens for an external provider. All token material is stored as
