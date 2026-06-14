@@ -29,6 +29,10 @@ const schema = z.object({
   ANTHROPIC_MODEL: z.string().default("claude-sonnet-4-6"),
   OPENAI_MODEL: z.string().default("gpt-4o-mini"),
 
+  // Shared secret the cron tick must present (x-cron-secret). If unset, the
+  // tick endpoint refuses to run.
+  CRON_SECRET: z.string().optional(),
+
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),

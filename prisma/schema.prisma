@@ -32,6 +32,29 @@ model User {
   facts        Fact[]
   profile      UserProfile?
   runs         Run[]
+  jobs         ScheduledJob[]
+}
+
+// Materialized scheduled work (PRD §5.3/§8). A trigger (calendar-derived
+// fire-time, cron) inserts a job; the cron tick claims due jobs atomically and
+// runs them through runWorkflow. `dedupeKey` + atomic claim → "exactly once".
+model ScheduledJob {
+  id          String    @id @default(cuid())
+  userId      String
+  dedupeKey   String    @unique
+  runAt       DateTime
+  status      String    @default("pending") // pending | claimed | done | error | canceled
+  request     String
+  sourceRef   String?
+  resultRunId String?
+  error       String?
+  claimedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
 }
 
 // History of agent-loop executions (PRD §9). One row per chat run: the request,

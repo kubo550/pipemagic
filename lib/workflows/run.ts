@@ -57,11 +57,13 @@ function systemPrompt(aboutMe: string): string {
   return lines.join("\n");
 }
 
+export type WorkflowOutcome = RunResult & { runId: string };
+
 export async function runWorkflow(
   userId: string,
   request: string,
   opts: { sink: WorkflowSink },
-): Promise<RunResult> {
+): Promise<WorkflowOutcome> {
   const provider = getProvider();
   const ctx: RunContext = {
     userId,
@@ -122,5 +124,5 @@ export async function runWorkflow(
     usdSpent: ctx.cost.usdSpent,
   });
 
-  return result;
+  return { ...result, runId: runRow.id };
 }
