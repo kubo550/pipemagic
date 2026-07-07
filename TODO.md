@@ -16,13 +16,15 @@ abstraction (OpenAI default `gpt-4o-mini`, Anthropic behind the same interface).
 - **Phase 5 (account-free)**: `fetch_url` web enrichment (SSRF-guarded) + `[web: …]` citations.
 - **Phase 6**: run history (`Run` persisted) + `/history` view + onboarding nudge.
 - **Phase 7 (core)**: `ScheduledJob` + `/api/cron/tick`; idempotent enqueue (dedupeKey) + atomic claim (SKIP LOCKED) → fires exactly once. Capture sink → Run history.
+- **CRM pipeline P1–P4** (see `docs/prd-crm-pipeline.md`): `CrmAdapter` + Pipedrive impl (per-user API token, encrypted, no migration); `/connections` paste-token screen (verified before save); `find_deal` tool (own-domain filter → contact lookup → highest deal id, unit-tested); `get_deal_context` tool + dedicated summarizer (raw email/notes/activities → one concise note, charged to run budget); `research_lead` tool — web-enabled-model research (Anthropic `web_search`, self-contained) + `pickPrimaryDomain` mini-AI. All three tools + token usage wired into `runWorkflow`. **P4 orchestrator**: `runPostMeeting(transcript, attendeeEmails)` seeds the full chain through the agent loop; scheduled failures re-enqueue via `jobs.retryLater` (attempt encoded in `dedupeKey`, capped, now+60s — unit-tested) instead of permanently failing.
 
 ## To do — no external accounts needed
-- [ ] Delivery channels for scheduled runs (email/Slack) — currently captured to Run history.
+- [x] Delivery: **Slack** incoming webhook (paste URL in `/connections`, verified with a test message, encrypted at rest); cron tick pushes the completed run's text. Email still TODO behind the same `deliverToUser`.
 - [ ] Trigger producers: enqueue briefs ~30 min before calendar events; daily 8:00 cron. (Infra ready; need the producer + a real cron caller hitting `/api/cron/tick`.)
 - [ ] Tighten the "to verify" labelling on web facts in the chat prompt.
 - [ ] `CompanyResearchCache` (cache fetched company research by domain).
-- [ ] Approval-gate UI round-trip in chat (loop already supports `awaiting_approval`).
+- [x] Approval-gate UI round-trip in chat: loop pauses on a `requiresApproval` tool and returns its `messages`; chat streams an `approval` event; UI shows Approve/Decline; `resumeWorkflow` settles the decision and continues (stateless — state round-trips through the client, Vercel-safe). Unit-tested (pause / resume-approve / resume-decline).
+- [x] `create_event` tool (approval-gated) + Google `calendar.events` scope + `createCalendarEvent`. **Users must reconnect Google** (new scope needs fresh consent) and the OAuth consent screen must list `calendar.events`.
 
 ## To do — needs an external key/account
 - [ ] **Anthropic API key** — get one at https://console.anthropic.com → put in `.env` as `ANTHROPIC_API_KEY`, set `LLM_PROVIDER="anthropic"` (+ `ANTHROPIC_MODEL="claude-sonnet-4-6"`) to verify the Claude provider path live. (Currently `.env` has only `OPENAI_API_KEY`; Anthropic is unset.)

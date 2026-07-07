@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   listUpcomingEvents,
   getEventDetails,
+  createCalendarEvent,
 } from "@/lib/integrations/google";
 import type { Tool } from "@/lib/agent/tools/types";
 
@@ -42,4 +43,39 @@ export const getEventDetailsTool: Tool<{ eventId: string }> = {
   },
 };
 
-export const calendarTools = [listCalendarEventsTool, getEventDetailsTool];
+export const createEventTool: Tool<{
+  summary: string;
+  startsAt: string;
+  endsAt: string;
+  description?: string;
+  attendees?: string[];
+}> = {
+  name: "create_event",
+  description:
+    "Create an event on the user's primary Google Calendar. Requires the user's approval before it runs — propose the event; it is only written after they confirm.",
+  requiresApproval: true,
+  schema: z.object({
+    summary: z.string().describe("Event title."),
+    startsAt: z
+      .string()
+      .describe("Start, ISO 8601 with timezone offset, e.g. 2026-07-08T15:00:00+02:00."),
+    endsAt: z.string().describe("End, ISO 8601 with timezone offset."),
+    description: z.string().optional().describe("Optional event description."),
+    attendees: z
+      .array(z.string())
+      .optional()
+      .describe("Optional attendee email addresses."),
+  }),
+  async execute(input, ctx) {
+    const event = await createCalendarEvent(ctx.userId, input);
+    return event
+      ? { created: true, id: event.id, link: event.htmlLink }
+      : { error: "No calendar connected." };
+  },
+};
+
+export const calendarTools = [
+  listCalendarEventsTool,
+  getEventDetailsTool,
+  createEventTool,
+];

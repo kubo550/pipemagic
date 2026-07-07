@@ -201,3 +201,78 @@ describe("agent loop guards", () => {
     expect(result.text).toBe("recovered");
   });
 });
+
+// --- approval pause → resume round-trip ---
+
+const finalResponse: LlmResponse = {
+  text: "done",
+  toolCalls: [],
+  stopReason: "end",
+  usage: { inputTokens: 1, outputTokens: 1 },
+};
+
+describe("agent loop: approval resume", () => {
+  it("does not run the gated tool at the pause", async () => {
+    const ran: string[] = [];
+    const gated: Tool<{ msg: string }> = { ...echoTool(ran), requiresApproval: true };
+    const paused = await runAgentLoop({
+      provider: mockProvider([toolCallResponse]),
+      system: "s",
+      request: "r",
+      tools: [gated],
+      ctx: makeCtx(),
+    });
+    expect(paused.status).toBe("awaiting_approval");
+    expect(paused.messages).toBeTruthy();
+    expect(ran).toEqual([]); // gated tool held until approved
+  });
+
+  it("runs the gated tool on resume when approved, then finishes", async () => {
+    const ran: string[] = [];
+    const gated: Tool<{ msg: string }> = { ...echoTool(ran), requiresApproval: true };
+    const paused = await runAgentLoop({
+      provider: mockProvider([toolCallResponse]),
+      system: "s",
+      request: "r",
+      tools: [gated],
+      ctx: makeCtx(),
+    });
+
+    const done = await runAgentLoop({
+      provider: mockProvider([finalResponse]),
+      system: "s",
+      request: "",
+      tools: [gated],
+      ctx: makeCtx(),
+      resumeMessages: paused.messages,
+      approval: { approved: true },
+    });
+    expect(done.status).toBe("completed");
+    expect(done.text).toBe("done");
+    expect(ran).toEqual(["a"]); // executed exactly once, on resume
+  });
+
+  it("skips the gated tool on resume when declined", async () => {
+    const ran: string[] = [];
+    const gated: Tool<{ msg: string }> = { ...echoTool(ran), requiresApproval: true };
+    const paused = await runAgentLoop({
+      provider: mockProvider([toolCallResponse]),
+      system: "s",
+      request: "r",
+      tools: [gated],
+      ctx: makeCtx(),
+    });
+
+    const done = await runAgentLoop({
+      provider: mockProvider([finalResponse]),
+      system: "s",
+      request: "",
+      tools: [gated],
+      ctx: makeCtx(),
+      resumeMessages: paused.messages,
+      approval: { approved: false },
+    });
+    expect(done.status).toBe("completed");
+    expect(ran).toEqual([]); // never executed
+  });
+});

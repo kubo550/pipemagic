@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { jobsRepository } from "@/lib/context/repositories/jobs";
 import { runWorkflow, type WorkflowSink } from "@/lib/workflows/run";
+import { deliverToUser } from "@/lib/integrations/delivery";
 import { env } from "@/lib/env";
 import { log } from "@/lib/observability/logger";
 
@@ -11,8 +12,9 @@ import { log } from "@/lib/observability/logger";
 // synchronously beyond the claimed batch.
 export const runtime = "nodejs";
 
-// Delivery for scheduled runs is captured into the Run history for now; email /
-// Slack channels layer on later (the sink is the only thing that changes).
+// The run is always recorded in Run history; if the user has a delivery channel
+// configured (Slack), the final text is also pushed there (below). The sink
+// itself stays a no-op — we deliver from the outcome after the run completes.
 function captureSink(): WorkflowSink {
   return { status: () => {}, final: () => {}, error: () => {} };
 }
@@ -33,9 +35,29 @@ async function tick() {
       });
       await jobs.complete(job.id, outcome.runId);
       completed++;
+
+      // Push the result to the user's delivery channel, if configured. A
+      // delivery failure must not fail the (successful) run — log and move on.
+      if (outcome.status === "completed" && outcome.text.trim()) {
+        try {
+          const { delivered, channel } = await deliverToUser(job.userId, {
+            text: outcome.text,
+          });
+          if (delivered) log.info("scheduled run delivered", { jobId: job.id, channel });
+        } catch (err) {
+          log.warn("delivery failed", { jobId: job.id, err: String(err) });
+        }
+      }
     } catch (err) {
-      log.error("scheduled job failed", { jobId: job.id, err: String(err) });
-      await jobs.fail(job.id, String(err));
+      // Transient CRM/network failures get re-enqueued (now + 60s) up to a cap,
+      // then marked permanently errored. Replaces Zapier's wait-and-retry.
+      const { retried, attempt } = await jobs.retryLater(job, String(err));
+      log.error("scheduled job failed", {
+        jobId: job.id,
+        err: String(err),
+        retried,
+        attempt,
+      });
     }
   }
 

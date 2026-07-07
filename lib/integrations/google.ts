@@ -20,6 +20,9 @@ export const GOOGLE_SCOPES = [
   "email",
   "profile",
   "https://www.googleapis.com/auth/calendar.readonly",
+  // Write scope for create_event. Adding a scope requires users to re-consent
+  // (Google won't extend an existing grant) — reconnect Google after deploy.
+  "https://www.googleapis.com/auth/calendar.events",
 ];
 
 function oauthClient() {
@@ -167,6 +170,40 @@ export async function listUpcomingEvents(
 /** Events for the next 7 days — backs the week calendar view. */
 export function listCalendarWeek(userId: string): Promise<UpcomingEvent[]> {
   return listUpcomingEvents(userId, { maxResults: 50, daysAhead: 7 });
+}
+
+export interface CreateEventInput {
+  summary: string;
+  startsAt: string; // ISO 8601 with timezone offset
+  endsAt: string;
+  description?: string;
+  attendees?: string[];
+}
+
+/**
+ * Create an event on the user's primary calendar. Requires the calendar.events
+ * scope (see GOOGLE_SCOPES). Gated behind approval upstream — never called
+ * without the user confirming.
+ */
+export async function createCalendarEvent(
+  userId: string,
+  input: CreateEventInput,
+): Promise<{ id: string; htmlLink: string } | null> {
+  const calendar = await getAuthedCalendar(userId);
+  if (!calendar) return null;
+
+  const res = await calendar.events.insert({
+    calendarId: "primary",
+    requestBody: {
+      summary: input.summary,
+      description: input.description,
+      start: { dateTime: input.startsAt },
+      end: { dateTime: input.endsAt },
+      attendees: input.attendees?.map((email) => ({ email })),
+    },
+  });
+
+  return { id: res.data.id ?? "", htmlLink: res.data.htmlLink ?? "" };
 }
 
 export interface EventDetails extends UpcomingEvent {

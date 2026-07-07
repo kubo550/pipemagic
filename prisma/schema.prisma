@@ -30,9 +30,38 @@ model User {
   stakeholders Stakeholder[]
   meetings     Meeting[]
   facts        Fact[]
-  profile      UserProfile?
-  runs         Run[]
-  jobs         ScheduledJob[]
+  profile       UserProfile?
+  runs          Run[]
+  jobs          ScheduledJob[]
+  conversations Conversation[]
+}
+
+// A saved chat thread. Groups the user's messages so the assistant's chats
+// survive reloads and can be revisited (replaces the Run-based /history view).
+model Conversation {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String   @default("New chat")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([userId, updatedAt])
+}
+
+// One turn in a Conversation. `role` is "user" or "assistant".
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String
+  text           String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
 }
 
 // Materialized scheduled work (PRD §5.3/§8). A trigger (calendar-derived

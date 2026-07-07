@@ -33,6 +33,14 @@ const schema = z.object({
   // tick endpoint refuses to run.
   CRON_SECRET: z.string().optional(),
 
+  // --- CRM (Pipedrive) ---
+  // API base; per-user API tokens are stored encrypted, not here.
+  PIPEDRIVE_API_BASE: z.string().url().default("https://api.pipedrive.com/v1"),
+  // Comma-separated extra domains to treat as the user's own in find_deal
+  // (e.g. a tenant with several domains). The user's own email domain is
+  // always included on top of this.
+  OWN_EMAIL_DOMAINS: z.string().optional(),
+
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
